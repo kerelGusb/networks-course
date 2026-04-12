@@ -9,6 +9,7 @@ class FTPClient:
         self.port = port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((host, port))
+        self.sock.settimeout(10)
         print(self._recv())
 
     def _send(self, cmd):
@@ -16,7 +17,10 @@ class FTPClient:
         return self._recv()
 
     def _recv(self):
-        return self.sock.recv(BUFFER_SIZE).decode()
+        try:
+            return self.sock.recv(BUFFER_SIZE).decode()
+        except socket.timeout:
+            return ""
 
     def login(self, user, password):
         print(self._send(f"USER {user}"))
@@ -27,7 +31,13 @@ class FTPClient:
 
         start = response.find("(")
         end = response.find(")")
+        if start == -1 or end == -1:
+            return None
+
         numbers = response[start+1:end].split(",")
+
+        if len(numbers) < 6:
+            return None
 
         ip = ".".join(numbers[:4])
         port = int(numbers[4]) * 256 + int(numbers[5])
@@ -69,6 +79,7 @@ class FTPClient:
         if not response.startswith("150"):
             print("Error: File not found")
             data_sock.close()
+            print(self._recv()) 
             return
 
         with open(filename, "wb") as f:
